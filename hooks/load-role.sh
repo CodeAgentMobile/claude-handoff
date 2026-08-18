@@ -1,16 +1,30 @@
 #!/usr/bin/env bash
-# SessionStart hook: if this session was launched with HANDOFF_ROLE=orchestrator|implementer|reviewer,
-# print roles/<ROLE>.md so Claude Code adds it to the session context. Silent no-op otherwise.
-# Pure bash on purpose — runs on macOS, Linux, WSL and Windows (Git Bash, which Claude Code requires anyway).
+# SessionStart hook: when HANDOFF_ROLE is set, inject (1) roles/ENGINEERING.md (shared), (2) roles/<ROLE>.md,
+# (3) project-local overrides from <repo>/.claude-handoff/local-engineering.md and local-<role>.md if present.
+# Silent no-op for every other session. Pure bash: macOS, Linux, WSL, Windows (Git Bash).
 set -u
 role="${HANDOFF_ROLE:-}"
 [ -z "$role" ] && exit 0
-role_upper=$(printf '%s' "$role" | tr '[:lower:]' '[:upper:]')
+ROLE=$(printf '%s' "$role" | tr '[:lower:]' '[:upper:]')
+lrole=$(printf '%s' "$role" | tr '[:upper:]' '[:lower:]')
 root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-file="$root/roles/$role_upper.md"
-if [ ! -f "$file" ]; then
-  printf '[claude-handoff] unknown HANDOFF_ROLE=%s (no roles/%s.md)\n' "$role" "$role_upper"
-  exit 0
+repo="${HANDOFF_REPO:-$PWD}"
+
+printf '[claude-handoff] You are the %s session. The following role instructions apply for the whole session.\n\n' "$ROLE"
+[ -f "$root/roles/ENGINEERING.md" ] && { cat "$root/roles/ENGINEERING.md"; printf '\n\n'; }
+if [ -f "$root/roles/$ROLE.md" ]; then
+  cat "$root/roles/$ROLE.md"
+else
+  printf '[claude-handoff] (no roles/%s.md in the plugin - role has no dedicated instructions)\n' "$ROLE"
 fi
-printf '[claude-handoff] You are the %s session. Follow these role instructions for the whole session:\n\n' "$role_upper"
-cat "$file"
+
+seen=" "
+for d in "$repo" "$PWD"; do
+  d=$(cd "$d" 2>/dev/null && pwd -P) || continue
+  case "$seen" in *" $d "*) continue;; esac
+  seen="$seen$d "
+  for f in "$d/.claude-handoff/local-engineering.md" "$d/.claude-handoff/local-$lrole.md"; do
+    [ -f "$f" ] && { printf '\n\n# Project-local rules (%s)\n\n' "$f"; cat "$f"; }
+  done
+done
+exit 0
