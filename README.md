@@ -32,12 +32,59 @@ The orchestrator launches the peers itself — one **tmux** window each (install
 
 Or try it without installing: `claude --plugin-dir /path/to/claude-handoff`.
 
-## Use
+## Use — step by step
 
-1. Open the session that will orchestrate on your most capable model, name it: `/rename orchestrator`.
-2. `/orchestrating-handoffs` — the skill checks/launches `implementer` and `reviewer` sessions, then walks you through: plan → your approval → implementer → isolated review → loop → final report.
-3. You keep the outward actions: push, PR, ticket writes.
+### 1. Open the orchestrator session
+In your IDE terminal (or any terminal), start Claude Code in the repo you'll work on, on your **most capable model**, and name the session:
 
+```
+claude --model <strongest>          # e.g. the current top tier
+/rename orchestrator                # peers reply to this exact name
+```
+
+(Or launch it pre-loaded with its role: `HANDOFF_ROLE=orchestrator claude -n orchestrator`.)
+
+### 2. Invoke the skill
+```
+/orchestrating-handoffs
+```
+The skill (Phase −1) confirms this session is the orchestrator, then checks with `ListAgents` whether `implementer` and `reviewer` sessions are running. **If they aren't, it launches them for you** — no manual setup:
+
+- installs `tmux` via Homebrew if missing;
+- creates a detached tmux session named **`handoff`** with one window per peer (`implementer` on the best coding model, `reviewer` on the strongest model);
+- each peer starts with its role instructions (`roles/<ROLE>.md`) already loaded via `HANDOFF_ROLE` + the SessionStart hook, in `bypassPermissions` mode so cross-session messages are delivered without a manual "Deliver" click;
+- falls back to a Terminal.app window only when tmux can't be installed.
+
+Then it walks the ticket: **plan → your approval → implementer → isolated review → fix loop (max 3) → final report**. You keep the outward actions (push, PR, ticket writes) unless you explicitly delegate them.
+
+### 3. Watch the peers (tmux)
+tmux runs **detached** — nothing pops up on its own. To see the peer sessions, open a new terminal tab (the IDE's integrated terminal works) and attach:
+
+```
+tmux attach -t handoff
+```
+
+| Keys | Action |
+|---|---|
+| `Ctrl-b n` / `Ctrl-b p` | next / previous window (implementer ↔ reviewer) |
+| `Ctrl-b <number>` | jump to window N |
+| `Ctrl-b w` | window picker |
+| `Ctrl-b d` | detach (peers keep running) |
+| `tmux ls` · `tmux list-windows -t handoff` | what's running |
+| `tmux capture-pane -p -t handoff:reviewer` | print a peer's screen without attaching |
+| `tmux kill-window -t handoff:reviewer` | stop one peer (the orchestrator does this itself when recycling the reviewer) |
+| `tmux kill-session -t handoff` | stop all peers |
+
+You can type into a peer's window like any Claude Code session (e.g. to answer a question it asks), but the workflow itself is driven by the orchestrator through `SendMessage`.
+
+### 4. What you'll be asked to do
+- **Confirm the plan** (the orchestrator will not dispatch anything before that).
+- Occasionally answer a design question the orchestrator can't decide alone.
+- **Push / open the PR** at the end (or tell the orchestrator to do it).
+
+Everything else — briefing, waiting, relaying, recycling the reviewer for a clean context each round, the final ≤150-word report — is the orchestrator's job.
+
+### Files
 Handoff files live in `~/.claude/handoff/<TICKET>/` (`plan.md`, `impl-report-N.md`, `review-report-N.md`, `final-report.md`) — a durable location on purpose (`/tmp` gets wiped on reboot).
 
 ## Model policy
