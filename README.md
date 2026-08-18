@@ -57,7 +57,7 @@ The skill (Phase −1) confirms this session is the orchestrator, then checks wi
 
 Then it walks the ticket: **plan → your approval → implementer → isolated review → fix loop (max 3) → final report**. You keep the outward actions (push, PR, ticket writes) unless you explicitly delegate them.
 
-### 3. Watch the peers (tmux)
+### 3. Watch the peers (tmux — macOS/Linux/WSL)
 tmux runs **detached** — nothing pops up on its own. To see the peer sessions, open a new terminal tab (the IDE's integrated terminal works) and attach:
 
 ```
@@ -74,6 +74,8 @@ tmux attach -t handoff
 | `tmux capture-pane -p -t handoff:reviewer` | print a peer's screen without attaching |
 | `tmux kill-window -t handoff:reviewer` | stop one peer (the orchestrator does this itself when recycling the reviewer) |
 | `tmux kill-session -t handoff` | stop all peers |
+
+On **Windows** there is no tmux: the peers open as tabs of a Windows Terminal window named `handoff` — just switch tabs.
 
 You can type into a peer's window like any Claude Code session (e.g. to answer a question it asks), but the workflow itself is driven by the orchestrator through `SendMessage`.
 
@@ -104,9 +106,19 @@ Move up when a stronger tier ships; don't pin old names.
 - A session cannot `/clear` itself, so the reviewer is **recycled** (killed + relaunched) before every round.
 - The reviewer runs **only** the listed test specs — never lint/build/full suite (laptops overheat; the implementer already ran them).
 
+## Platforms
+
+| Platform | Peers run in | Notes |
+|---|---|---|
+| macOS | tmux session `handoff` (auto-installed via Homebrew) | fallback: Terminal.app windows |
+| Linux / WSL | tmux session `handoff` (auto-installed via apt if missing) | fallback: `x-terminal-emulator` |
+| Windows (native, Claude Code in Git Bash / PowerShell) | **Windows Terminal** window `handoff`, one tab per peer (`wt.exe`) | fallback: separate PowerShell windows; role hook runs under Git Bash (required by Claude Code on Windows anyway) |
+
+On Windows the handoff files live in `%USERPROFILE%\.claude\handoff\<TICKET>\`. Windows support follows the same rules as macOS/Linux but has had less field testing — issues welcome.
+
 ## Requirements
 
-macOS or Linux, Claude Code ≥ 2.1 (cross-session `SendMessage`/`ListAgents`), `tmux` (auto-installed via Homebrew on macOS) — Terminal.app fallback is macOS-only.
+Claude Code ≥ 2.1 (cross-session `SendMessage` / `ListAgents`), `bash` (Git Bash on Windows), and either `tmux` (macOS/Linux/WSL — auto-installed) or Windows Terminal (`wt.exe`).
 
 ## Contributing
 

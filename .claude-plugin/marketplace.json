@@ -6,7 +6,7 @@
       "name": "claude-handoff",
       "source": "./",
       "description": "Orchestrator → Implementer → Reviewer workflow across separate Claude Code sessions, with isolated review and per-role instructions.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": { "name": "Edgar Durand" },
       "license": "MIT",
       "keywords": ["orchestration", "handoff", "code-review", "multi-session", "tmux"]

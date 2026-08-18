@@ -15,7 +15,7 @@ Each role has system instructions in this plugin's `roles/` folder (`ORCHESTRATO
 | **Implementer** | peer session named `implementer` | **the best coding model** (`opus` today) | `implementer` | receives the plan brief only |
 | **Reviewer** | peer session named `reviewer` | **the most capable model available** (session default when that is the strongest — Fable 5 today; otherwise pass `--model`) | `reviewer` | receives the reviewer brief only — **never the implementer's output** |
 
-Handoffs are **files, not chat**: every baton is a Markdown file under `~/.claude/handoff/<TICKET>/` — a **durable** location (the session scratchpad lives in `/private/tmp`, which is wiped on reboot; a laptop that overheats mid-review took `plan.md` with it once). Files make isolation enforceable — the reviewer is pointed at `plan.md` and the diff, and never receives `impl-report-N.md`.
+Handoffs are **files, not chat**: every baton is a Markdown file under `~/.claude/handoff/<TICKET>/` (`%USERPROFILE%\.claude\handoff\<TICKET>\` on Windows) — a **durable** location (the session scratchpad lives in `/private/tmp`, which is wiped on reboot; a laptop that overheats mid-review took `plan.md` with it once). Files make isolation enforceable — the reviewer is pointed at `plan.md` and the diff, and never receives `impl-report-N.md`.
 
 ```
 ~/.claude/handoff/<TICKET>/
@@ -43,31 +43,47 @@ Run this at the start of every orchestration and again before each handoff (sess
    - `ListAgents`: if a peer named `orchestrator` is already listed, **another session holds the role** — say so and ask the engineer which one should orchestrate; do not proceed as a second orchestrator.
    - Otherwise ask one question: "This session will act as the orchestrator for <TICKET>. Confirm, run `/rename orchestrator` if the prompt box doesn't already show that name, and make sure this session is on the most capable model (`/model`)." Wait for the confirmation before anything else. (If the engineer says this session is already named `orchestrator`, take their word — you can't see your own name.)
 2. `ListAgents` → "Peer sessions" must list `implementer` and `reviewer` (state `idle` or `busy`). Only *running* sessions are listed — a session that exists on disk but is closed does not count.
-3. **Missing peer → launch it yourself.** Build the command once, then use **tmux** — install it with Homebrew if missing — (windows of one `handoff` session — the engineer sees all peers inside a single IDE terminal tab with `tmux attach -t handoff`), only if tmux cannot be installed (no Homebrew) fall back to a **Terminal.app** window. One `Bash` call per session; set `NAME`, `MODEL`, `REPO`; for `reviewer` drop the `--model` flag so it uses the session default:
+3. **Missing peer → launch it yourself.** First detect the OS from the Bash tool: `uname -s` → `Darwin` (macOS) / `Linux` (incl. WSL) → use block **A**; `MINGW*`/`MSYS*`/`CYGWIN*` (native Windows, Git Bash) → use block **B**. One `Bash` call per session; set `NAME`, `MODEL`, `REPO`; for `reviewer` drop the `--model` flag so it uses the session default.
+
+   **A — macOS / Linux / WSL:** **tmux** (installed via Homebrew/apt if missing) — windows of one `handoff` session; the engineer sees all peers inside a single IDE terminal tab with `tmux attach -t handoff`. Fallback when tmux can't be installed: a Terminal.app window (macOS) or `x-terminal-emulator` (Linux).
    ```bash
    PLUGIN_ROOT=<this skill's base directory>/../..   # the claude-handoff plugin root (contains roles/ and hooks/)
    REPO=<repo>; NAME=implementer; MODEL=opus         # for reviewer: NAME=reviewer and leave MODEL empty (session default)
    ROLE_UPPER=$(printf '%s' "$NAME" | tr '[:lower:]' '[:upper:]')
    CMD="cd '$REPO' && for v in \$(env | sed -n 's/^\(CLAUDE[A-Za-z_]*\)=.*/\1/p'); do unset \$v; done && export HANDOFF_ROLE=$NAME && claude -n $NAME ${MODEL:+--model $MODEL} --permission-mode bypassPermissions --append-system-prompt-file '$PLUGIN_ROOT/roles/$ROLE_UPPER.md' 'You are the $NAME session in a multi-session workflow. Reply only: ready. Then wait for [DEV handoff] messages from the orchestrator and follow them exactly.'"
-   command -v tmux >/dev/null || (command -v brew >/dev/null && brew install tmux)   # tmux missing → install it (macOS/Homebrew), then use it
+   command -v tmux >/dev/null || { command -v brew >/dev/null && brew install tmux; } || { command -v apt-get >/dev/null && sudo apt-get install -y tmux; }   # tmux missing → install, then use it
    if command -v tmux >/dev/null; then
      tmux has-session -t handoff 2>/dev/null && tmux new-window -t handoff -n "$NAME" "$CMD" || tmux new-session -d -s handoff -n "$NAME" "$CMD"
-   else   # no tmux and no brew → Terminal.app window (macOS)
+   elif [ "$(uname -s)" = Darwin ]; then   # no tmux → Terminal.app window
      osascript -e "tell application \"Terminal\" to do script \"$(printf '%s' "$CMD" | sed 's/\\/\\\\/g; s/"/\\"/g')\""
+   else                                     # Linux without tmux → any terminal emulator
+     x-terminal-emulator -e bash -lc "$CMD" &
    fi
    ```
+
+   **B — native Windows (Claude Code in Git Bash / PowerShell):** no tmux; use **Windows Terminal** (`wt.exe`, one tab per peer in a window named `handoff`) and fall back to a plain PowerShell window. Same ingredients: clear the inherited `CLAUDE_*` env vars, `cd` into the repo, set `HANDOFF_ROLE`, `bypassPermissions`, role file, first prompt.
+   ```bash
+   PLUGIN_ROOT_WIN=$(cygpath -w "$PLUGIN_ROOT"); REPO_WIN=$(cygpath -w "$REPO"); ROLE_UPPER=$(printf '%s' "$NAME" | tr '[:lower:]' '[:upper:]')
+   PS="Set-Location '$REPO_WIN'; Get-ChildItem Env: | Where-Object { \$_.Name -like 'CLAUDE*' } | ForEach-Object { Remove-Item \"Env:\$(\$_.Name)\" }; \$env:HANDOFF_ROLE='$NAME'; claude -n $NAME ${MODEL:+--model $MODEL} --permission-mode bypassPermissions --append-system-prompt-file '$PLUGIN_ROOT_WIN\\roles\\$ROLE_UPPER.md' 'You are the $NAME session in a multi-session workflow. Reply only: ready. Then wait for [DEV handoff] messages from the orchestrator and follow them exactly.'"
+   if command -v wt.exe >/dev/null; then
+     wt.exe -w handoff new-tab --title "$NAME" powershell.exe -NoExit -Command "$PS"     # window named "handoff", one tab per peer
+   else
+     powershell.exe -Command "Start-Process powershell.exe -ArgumentList '-NoExit','-Command',\"$PS\""
+   fi
+   ```
+   On Windows, inspect a peer by switching to its tab in the `handoff` Windows Terminal window; kill one by closing the tab or with the recycle command in Phase 2. (The Windows block follows the same rules as macOS/Linux but has had less field testing — please report differences on the plugin repo.)
    - **tmux mode:** the first time, tell the engineer once: "Peers run in tmux session `handoff` — open an IDE terminal tab and run `tmux attach -t handoff` (Ctrl-b n / Ctrl-b <number> to switch between windows, Ctrl-b d to detach)." Inspect a peer with `tmux capture-pane -p -t handoff:<name>`; kill one with `tmux kill-window -t handoff:<name>`. `ListAgents` shows the tmux location (`tmux handoff:@N.%M`) next to each peer.
    - **Terminal.app mode:** inspect with `osascript -e 'tell application "Terminal" to get contents of tab 1 of front window'`; kill with `pkill -f "claude -n <name>"` + `osascript -e 'tell application "Terminal" to close (every window whose name contains "<name>")'`.
-   - IDE-integrated terminal tabs (WebStorm/VS Code/Cursor) cannot be created from the CLI — that is why tmux is the way to get "tabs inside the IDE".
+   - IDE-integrated terminal tabs (WebStorm/VS Code/Cursor) cannot be created from the CLI — that is why tmux (or Windows Terminal tabs on Windows) is the way to get "tabs".
 
-   Every piece of `CMD` is load-bearing (verified on macOS, Claude Code 2.1.x):
+   Every piece of `CMD`/`PS` is load-bearing (verified on macOS, Claude Code 2.1.x; the Windows block mirrors it):
    - `for v in $(env | sed …); do unset $v; done` — a shell spawned from inside a Claude session inherits `CLAUDE_*` env vars; with them set the new session becomes a *child* session (no transcript, invisible to `ListAgents`, unreachable by `SendMessage`).
    - `cd '$REPO'` — trusted folder, so no trust prompt blocks startup.
    - `--permission-mode bypassPermissions` — the only mode that delivers cross-session messages without a manual "Deliver" click (`manual`, `acceptEdits`, `auto` all hold them for approval). This is the engineer's standing choice for peers; if they want a stricter mode they must approve every held message by hand — say so.
    - `export HANDOFF_ROLE=$NAME` + `--append-system-prompt-file roles/<ROLE>.md` — the role instructions reach the session two ways: the plugin's SessionStart hook injects `roles/<ROLE>.md` when `HANDOFF_ROLE` is set, and the flag appends the same file to the system prompt (works even if the hook is not installed).
    - the trailing quoted prompt — the session must complete one turn before it registers as a peer.
    - `--resume <session-id>` may be added to re-attach a previous session (ids from the `claude --resume` picker) — only when the engineer explicitly wants the old context back; **the reviewer is always fresh**, and the implementer is fresh unless the engineer says otherwise.
-4. Wait ~20–30 s (`Bash`: `until pgrep -f "claude -n $NAME" >/dev/null; do sleep 1; done; sleep 25`), then `ListAgents` again. Not listed → inspect the pane/window (commands above), tell the engineer what it shows, and stop; never send briefs to a session that isn't listed. If `SendMessage` says the peer is unreachable right after it was listed, wait 10 s and retry once.
+4. Wait ~20–30 s (macOS/Linux: `until pgrep -f "claude -n $NAME" >/dev/null; do sleep 1; done; sleep 25`; Windows Git Bash has no `pgrep` — just `sleep 30`), then `ListAgents` again. Not listed → inspect the pane/window (commands above), tell the engineer what it shows, and stop; never send briefs to a session that isn't listed. If `SendMessage` says the peer is unreachable right after it was listed, wait 10 s and retry once.
 5. **Never fall back to spawning subagents** (`Agent`) for these roles — that is a different workflow.
 
 ## Mechanics (read once)
@@ -110,8 +126,11 @@ On reply: read `impl-report-N.md`. `BLOCKED`/`PARTIAL`, or a deviation that chan
 
 1. **Recycle the reviewer — automatically, no engineer action.** Terminate any running `reviewer` session and relaunch a fresh one with the Phase −1 launch block (`NAME=reviewer`, no `--model`):
    ```bash
+   # macOS / Linux / WSL
    tmux kill-window -t handoff:reviewer 2>/dev/null; pkill -f "claude -n reviewer"; osascript -e 'tell application "Terminal" to close (every window whose name contains "reviewer")' 2>/dev/null
-   # then the Phase −1 launch block with NAME=reviewer (no --model), wait ~30 s, confirm with ListAgents
+   # native Windows (Git Bash): stop the reviewer's claude process (matches its "-n reviewer" command line)
+   powershell.exe -Command "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*claude*-n reviewer*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }"
+   # then the Phase −1 launch block (A or B) with NAME=reviewer (no --model), wait ~30 s, confirm with ListAgents
    ```
    If the engineer opened their own reviewer tab (e.g. in the IDE) instead of one you launched, ask once whether you may take it over (the kill closes their tab's process) — otherwise launch yours and leave theirs alone. Only send to a `reviewer` that `ListAgents` currently lists; if `SendMessage` says it is unreachable, wait 10 s and retry once, then re-check the process (`pgrep -f "claude -n reviewer"`) — a session whose window was closed must be relaunched.
 2. `SendMessage` to `reviewer` with this brief. It references **only** `plan.md` and the diff — not `impl-report-N.md`, not the implementer's message, not your paraphrase of it.

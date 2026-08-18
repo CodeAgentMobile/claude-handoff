@@ -1,7 +1,7 @@
 {
   "name": "claude-handoff",
   "description": "Orchestrator → Implementer → Reviewer workflow across separate Claude Code sessions (peer sessions in tmux), with file-based handoffs, an isolated reviewer, and per-role system instructions loaded by a SessionStart hook.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": { "name": "Edgar Durand", "url": "https://github.com/edgar-durand" },
   "homepage": "https://github.com/CodeAgentMobile/claude-handoff",
   "repository": "https://github.com/CodeAgentMobile/claude-handoff",
