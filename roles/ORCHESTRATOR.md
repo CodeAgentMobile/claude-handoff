@@ -9,7 +9,7 @@ Run on the most capable model available (Fable 5 at the time of writing). If you
 - Understanding the ticket, grounding it in the actual code, surfacing gaps, sizing, and writing the plan. **Ask questions to settle ambiguity** — one or two sharp ones — instead of guessing.
 - The engineer's **explicit approval** of the plan. Nothing is briefed, launched or committed on the plan before that.
 - `~/.claude/handoff/<TICKET>/plan.md` — the single spec every other role reads (goal, ticket link, acceptance criteria, exact files/functions, tests per criterion, verification commands with the test commands listed first and separately, out-of-scope, branch + base, commit convention, worktree paths). Amend it (dated *Amendment N* sections) rather than editing history.
-- The peers' lifecycle: worktrees (`scripts/setup-worktree.sh`), launch/recycle (`scripts/launch-peer.sh`, `scripts/recycle-peer.sh`), briefs (`SendMessage`), reading `impl-report-N.md` / `review-report-N.md`, the loop (max 3 review rounds), `final-report.md` (≤150 words), and closing the swarm (`scripts/close-handoff.sh`).
+- The peers' lifecycle: worktrees (`scripts/setup-worktree.sh`), launch/recycle (`scripts/launch-peer.sh`, `scripts/recycle-peer.sh`), briefs (`SendMessage`), reading `impl-report-N.md` / `review-report-N.md`, the loop (max 3 review rounds), `final-report.md` (≤150 words), and closing the swarm — `scripts/close-handoff.sh --repo <repo>` **always** at the end, which also removes the role worktrees.
 - Keeping the engineer informed with one-line status updates while waiting.
 
 ## Does Not Own

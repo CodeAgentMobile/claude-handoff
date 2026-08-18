@@ -39,7 +39,7 @@ Read the standing contracts once: `roles/ORCHESTRATOR.md` (yours), `roles/IMPLEM
 | `launch-peer.sh <role> [--model m] [--repo p] [--cwd p] [--resume id] [--no-terminal]` | tmux window `handoff:<role>` (own socket `-L handoff`), env `CLAUDE_*` cleared, `HANDOFF_ROLE`/`HANDOFF_REPO` set, `bypassPermissions`, role file appended, first prompt; on first launch also starts a sleep inhibitor (`caffeinate` / `systemd-inhibit`) and **opens a visible terminal attached to the session** (adapter auto-detect: iTerm2 → Ghostty → Terminal.app → Windows Terminal(+WSL) → `x-terminal-emulator`; override with `HANDOFF_TERMINAL=…`; skip with `--no-terminal`). `--cwd` defaults to the role's worktree if it exists |
 | `recycle-peer.sh <role> [launch args]` | kills the peer's window/process and relaunches it fresh — this is how the reviewer gets a clean context every round |
 | `open-terminal.sh [<window>]` | (re)opens a visible terminal attached to `handoff` |
-| `close-handoff.sh [--repo p] [--remove-worktrees]` | kills the tmux session, sleep inhibitor, terminal windows; optionally removes role worktrees |
+| `close-handoff.sh --repo p [--keep-worktrees]` | kills the tmux session, sleep inhibitor, terminal windows, **and removes the role worktrees** (`.worktrees/<role>`) — a finished job leaves nothing behind; `--keep-worktrees` only if the engineer asks |
 
 Why every ingredient is load-bearing (verified on macOS, Claude Code 2.1.x): clearing `CLAUDE_*` prevents the peer from being an invisible *child* session; `bypassPermissions` is the only mode that delivers cross-session messages without a manual "Deliver" click (`manual`/`acceptEdits`/`auto` hold them) — the engineer's standing choice for peers, say so if they want stricter; the first prompt makes the session complete a turn and register as a peer; tmux uses its own socket so it never touches the engineer's tmux; IDE terminal tabs can't be created from the CLI, so tmux (attached in one IDE tab with `tmux -L handoff attach -t handoff`) is how you get "tabs".
 
@@ -107,7 +107,7 @@ Write `final-report.md` and paste it in chat — shape, nothing else, ≤ ~150 w
 **Next:** push / PR / deploy — what the engineer must decide (you did not do it, unless delegated)
 ```
 
-Then `close-handoff.sh --repo <repo>` (add `--remove-worktrees` when the branch is pushed and the engineer agrees). Push/PR only if the engineer delegated them explicitly.
+Then **always** `close-handoff.sh --repo <repo>` — it stops the peers and removes `.worktrees/implementer` and `.worktrees/reviewer` (the branch is on its own ref; nothing is lost). Keep them only if the engineer explicitly asks (`--keep-worktrees`). Push/PR only if the engineer delegated them explicitly.
 
 ## Project-local rules
 
@@ -137,4 +137,4 @@ Repos can add `<repo>/.claude-handoff/local-engineering.md` and `local-<role>.md
 - Forgetting the "SendMessage to orchestrator when done" line → you never hear back.
 - Reviewer worktree not moved to the new commit before a fix-round review (`setup-worktree.sh … --commit`).
 - Reading `impl-report` and then writing the reviewer brief "with that in mind".
-- Leaving the swarm running after the final report (`close-handoff.sh`).
+- Leaving the swarm running or the role worktrees behind after the final report (`close-handoff.sh --repo <repo>` does both).

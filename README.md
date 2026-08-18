@@ -23,7 +23,7 @@ Why: one session that plans, writes and reviews its own code grades its own home
 | `hooks/hooks.json` + `hooks/load-role.sh` | `SessionStart` hook: with `HANDOFF_ROLE=<role>` it injects `ENGINEERING.md` + `roles/<ROLE>.md` + your repo's `.claude-handoff/local-*.md`. |
 | `scripts/launch-peer.sh` · `recycle-peer.sh` · `setup-worktree.sh` · `open-terminal.sh` · `close-handoff.sh` | Peer lifecycle: tmux window per peer (own socket), per-role git worktrees, visible terminal via adapters (iTerm2 / Ghostty / Terminal.app / Windows Terminal+WSL / x-terminal), sleep inhibitor, clean shutdown. |
 
-**Per-role worktrees.** The implementer works in `<repo>/.worktrees/implementer` on the ticket branch; the reviewer sits in `<repo>/.worktrees/reviewer` **detached at the exact commit** under review — so it never sees half-edited files and can't race the implementer. `node_modules`/`.venv`/`vendor` are symlinked from the main checkout; `.worktrees/` is excluded via `.git/info/exclude`.
+**Per-role worktrees.** The implementer works in `<repo>/.worktrees/implementer` on the ticket branch; the reviewer sits in `<repo>/.worktrees/reviewer` **detached at the exact commit** under review — so it never sees half-edited files and can't race the implementer. `node_modules`/`.venv`/`vendor` are symlinked from the main checkout; `.worktrees/` is excluded via `.git/info/exclude`, and removed automatically when the job closes.
 
 **Project-local rules.** Drop `.claude-handoff/local-engineering.md` / `local-implementer.md` / `local-reviewer.md` in your repo to add project rules (test commands, conventions) without forking the plugin.
 
@@ -78,7 +78,7 @@ tmux -L handoff attach -t handoff
 | `tmux -L handoff ls` · `tmux -L handoff list-windows -t handoff` | what's running |
 | `tmux -L handoff capture-pane -p -t handoff:reviewer` | print a peer's screen without attaching |
 | `scripts/recycle-peer.sh reviewer` | stop + relaunch one peer fresh (the orchestrator does this every review round) |
-| `scripts/close-handoff.sh [--repo <repo> --remove-worktrees]` | stop all peers, sleep inhibitor, windows (and optionally the role worktrees) |
+| `scripts/close-handoff.sh --repo <repo>` | stop all peers, sleep inhibitor, windows **and remove the role worktrees** (`--keep-worktrees` to keep) |
 
 On **Windows** there is no tmux: the peers open as tabs of a Windows Terminal window named `handoff` — just switch tabs.
 

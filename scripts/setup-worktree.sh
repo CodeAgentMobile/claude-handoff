@@ -14,7 +14,7 @@ wt="$repo/.worktrees/$role"
 cd "$repo" || exit 1
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { hf_log "$repo is not a git repo"; exit 1; }
 grep -qx '.worktrees/' .git/info/exclude 2>/dev/null || echo '.worktrees/' >> .git/info/exclude
-if [ "$remove" = 1 ]; then git worktree remove --force "$wt" 2>/dev/null; git worktree prune; hf_log "removed $wt"; exit 0; fi
+if [ "$remove" = 1 ]; then cd "$repo"; git worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"; git worktree prune; hf_log "removed $wt"; exit 0; fi
 if [ -n "$commit" ]; then
   if [ -d "$wt" ]; then git -C "$wt" checkout --quiet --detach "$commit"
   else git worktree add --quiet --detach "$wt" "$commit"; fi
