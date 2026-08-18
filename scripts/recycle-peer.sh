@@ -9,4 +9,4 @@ case "$(hf_os)" in
   *) pkill -f "claude -n $role" 2>/dev/null ;;
 esac
 sleep 1
-exec "$(dirname "$0")/launch-peer.sh" "$@"
+exec "$(dirname "$0")/launch-peer.sh" "$@" --force

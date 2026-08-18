@@ -5,11 +5,16 @@
 # --cwd defaults to the role's worktree if <repo>/.worktrees/<role> exists, else <repo>.
 . "$(dirname "$0")/lib.sh"
 role="${1:?role}"; shift
-model=""; repo="$(pwd)"; cwd=""; resume=""; open_term=1
+model=""; repo="$(pwd)"; cwd=""; resume=""; open_term=1; force=0
 while [ $# -gt 0 ]; do case "$1" in
   --model) model="$2"; shift 2;; --repo) repo="$2"; shift 2;; --cwd) cwd="$2"; shift 2;;
-  --resume) resume="$2"; shift 2;; --no-terminal) open_term=0; shift;;
+  --resume) resume="$2"; shift 2;; --no-terminal) open_term=0; shift;; --force) force=1; shift;;
   *) echo "unknown arg $1" >&2; exit 2;; esac; done
+# Refuse to create a duplicate peer: a session named <role> already running (e.g. an IDE tab the engineer opened)
+if [ "$force" != 1 ] && [ "$(hf_os)" != windows ] && pgrep -f "claude -n $role" >/dev/null 2>&1; then
+  hf_log "a '$role' session is already running (pid $(pgrep -f "claude -n $role" | head -1)). Reuse it (SendMessage to '$role'), or replace it with: recycle-peer.sh $role ... (kills the old one), or pass --force to launch a second one anyway."
+  exit 3
+fi
 [ -z "$cwd" ] && { [ -d "$repo/.worktrees/$role" ] && cwd="$repo/.worktrees/$role" || cwd="$repo"; }
 root=$(hf_plugin_root); ROLE=$(hf_upper "$role"); rolefile="$root/roles/$ROLE.md"
 hf_ensure_tmux || { hf_log "tmux unavailable — install tmux (or WSL+tmux on Windows) and retry"; exit 1; }

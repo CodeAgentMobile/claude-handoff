@@ -47,7 +47,7 @@ Why every ingredient is load-bearing (verified on macOS, Claude Code 2.1.x): cle
 
 1. **Claim orchestrator — with confirmation.** `ListAgents`: if a peer named `orchestrator` is listed, another session holds the role — ask which one should orchestrate; don't proceed as a second one. Otherwise ask one question: "This session will orchestrate <TICKET>. Confirm, `/rename orchestrator` if the prompt box doesn't show that name, and make sure it's on the most capable model (`/model`)." Wait for the confirmation.
 2. Detect the OS once (`uname -s`). Native Windows needs WSL with tmux (`wsl --install`, then `sudo apt-get install tmux` inside) — the scripts route tmux calls through `wsl.exe`; if WSL is absent, stop and tell the engineer.
-3. Peers are launched **per phase** (implementer in Phase 1, reviewer in Phase 2) — but check now with `ListAgents` whether stale `implementer`/`reviewer` sessions from a previous ticket exist; if so, recycle them when their phase comes. **Never fall back to `Agent` subagents** for these roles.
+3. Peers are launched **per phase** (implementer in Phase 1, reviewer in Phase 2) — but check now with `ListAgents` whether `implementer`/`reviewer` sessions already exist (previous ticket, or tabs the engineer opened). Two peers with the same name is a failure mode: SendMessage becomes ambiguous and briefs can land on the wrong one. Decide with the engineer per phase: reuse or replace — never launch a duplicate. **Never fall back to `Agent` subagents** for these roles.
 4. First time on this machine tell the engineer once: "Peers run in tmux session `handoff` (own socket). A terminal window attached to it opens automatically; to attach from an IDE tab: `tmux -L handoff attach -t handoff` (Ctrl-b n / Ctrl-b <number> to switch, Ctrl-b d to detach)."
 
 ## Phase 0 — Design (orchestrator only)
@@ -57,7 +57,7 @@ All shaping, spec and planning happen here, before anything is sent. Use whateve
 ## Phase 1 — Implement (`implementer`)
 
 1. Worktree: `setup-worktree.sh <repo> implementer --branch <branch> --base <base>`.
-2. Launch (or recycle if a stale one exists): `launch-peer.sh implementer --model opus --repo <repo>`. Wait ~25 s, `ListAgents` must list `implementer` (Windows Git Bash has no `pgrep` — just wait). Not listed → `tmux -L handoff capture-pane -p -t handoff:implementer`, tell the engineer, stop.
+2. **Never a second `implementer`.** If `ListAgents` already lists one (e.g. an IDE tab the engineer opened, or last ticket's session), ask the engineer once: *reuse it* (send the brief there — it must then `cd` into the worktree itself; it may lack the v0.3 role instructions) or *replace it* (`recycle-peer.sh implementer --model opus --repo <repo>` — kills the old process, including an IDE tab's). Only when none is listed: `launch-peer.sh implementer --model opus --repo <repo>` (it refuses if a same-named process exists; `--force` overrides). Wait ~25 s, `ListAgents` must list `implementer` (Windows Git Bash has no `pgrep` — just wait). Not listed → `tmux -L handoff capture-pane -p -t handoff:implementer`, tell the engineer, stop.
 3. Write the brief to `inbox/implementer/brief-N.md`, then `SendMessage` it to `implementer` (same text):
 
 ```
@@ -74,7 +74,7 @@ Then SendMessage to "orchestrator" with the report path and its Status line. Not
 ## Phase 2 — Review (`reviewer`, clean, exact commit)
 
 1. Worktree at the exact commit: `setup-worktree.sh <repo> reviewer --commit <sha>`.
-2. **Recycle** (never reuse): `recycle-peer.sh reviewer --repo <repo>` (add `--model <strongest>` only if the session default is not the strongest). Wait ~25 s, `ListAgents` must list `reviewer`; if `SendMessage` says unreachable, wait 10 s and retry once, then check `tmux -L handoff capture-pane -p -t handoff:reviewer`.
+2. **Recycle** (never reuse, never a second one): `recycle-peer.sh reviewer --repo <repo>` (add `--model <strongest>` only if the session default is not the strongest). If the existing `reviewer` is a tab the engineer opened themselves, tell them the recycle will close it (ask once). Wait ~25 s, `ListAgents` must list `reviewer`; if `SendMessage` says unreachable, wait 10 s and retry once, then check `tmux -L handoff capture-pane -p -t handoff:reviewer`.
 3. Write the brief to `inbox/reviewer/brief-N.md`, then `SendMessage` it. It references **only** `plan.md`, the commit and the test commands — never `impl-report-N.md`, never the implementer's message or your paraphrase of it, never a prior `review-report`.
 
 ```
@@ -118,6 +118,7 @@ Repos can add `<repo>/.claude-handoff/local-engineering.md` and `local-<role>.md
 | Temptation | Rule |
 |---|---|
 | "The peers aren't listed, I'll just spawn a subagent" | No. `launch-peer.sh`. Subagents are a different workflow. |
+| "There's already an `implementer` but I'll launch mine anyway" | Never two peers with one name. Ask: reuse or replace (`recycle-peer.sh`). |
 | "I'll launch with a bare `claude -n …`" | Use the script: env clearing, `bypassPermissions`, role file and first prompt are all required or the peer is invisible/unreachable/roleless. |
 | "The implementer's summary is useful context for the reviewer" | Reviewer gets `plan.md` + commit + test list. Ever. |
 | "Review the branch HEAD, it's the same thing" | Review the exact `commit:`. HEAD can move while the reviewer works. |
